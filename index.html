@@ -3,98 +3,124 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sohbet Uygulaması</title>
+  <title>GitHub Sohbet</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
+      text-align: center;
       margin: 0;
+      padding: 20px;
     }
     #chat-box {
-      width: 90%;
-      max-width: 500px;
+      border: 1px solid #ddd;
+      padding: 10px;
       height: 300px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
+      width: 80%;
+      margin: 0 auto 20px;
       overflow-y: auto;
+      text-align: left;
+    }
+    input, button {
       padding: 10px;
-      background-color: #f9f9f9;
-      margin-bottom: 10px;
-    }
-    #chat-box div {
-      margin-bottom: 8px;
-      padding: 5px 10px;
-      background-color: #e1f5fe;
-      border-radius: 4px;
-    }
-    #message-form {
-      display: flex;
-      width: 90%;
-      max-width: 500px;
-    }
-    #message-form input {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      margin-right: 10px;
-    }
-    #message-form button {
-      padding: 10px;
-      border: none;
-      background-color: #007bff;
-      color: white;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #message-form button:hover {
-      background-color: #0056b3;
+      margin: 5px;
     }
   </style>
 </head>
 <body>
+  <h1>GitHub Sohbet</h1>
   <div id="chat-box"></div>
-  <form id="message-form">
-    <input type="text" id="message-input" placeholder="Mesajınızı yazın..." autocomplete="off" />
-    <button type="submit">Gönder</button>
-  </form>
+  <input type="text" id="username" placeholder="Kullanıcı adı" />
+  <input type="text" id="message" placeholder="Mesajınızı yazın" />
+  <button id="send-button">Gönder</button>
 
   <script>
-    // Mesaj kutusu ve form elemanlarını seçiyoruz
-    const chatBox = document.getElementById('chat-box');
-    const messageForm = document.getElementById('message-form');
-    const messageInput = document.getElementById('message-input');
+    const GITHUB_TOKEN = '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'; // Güvenli olmayan yöntem.
+    const REPO_OWNER = 'hakkimaden';
+    const REPO_NAME = 'downchat0';
+    const FILE_PATH = 'chat.txt';
+    const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
 
-    // Tarayıcıda yerel mesajları yükleme
-    function loadMessages() {
-      const messages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-      chatBox.innerHTML = messages.map(msg => `<div>${msg}</div>`).join('');
-      chatBox.scrollTop = chatBox.scrollHeight;
+    async function sendMessage() {
+      const username = document.getElementById('username').value.trim();
+      const message = document.getElementById('message').value.trim();
+
+      if (!username || !message) {
+        alert('Kullanıcı adı ve mesaj boş bırakılamaz.');
+        return;
+      }
+
+      // Mevcut dosyayı oku
+      const headers = {
+        'Authorization': `token ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      };
+
+      let fileContent = '';
+      let sha = null;
+
+      try {
+        const response = await fetch(API_URL, { headers });
+        if (response.ok) {
+          const fileData = await response.json();
+          fileContent = atob(fileData.content); // Mevcut içeriği decode et
+          sha = fileData.sha; // SHA değeri alınmalı
+        }
+      } catch (error) {
+        console.warn('Dosya okunamadı, yeni dosya oluşturulacak.');
+      }
+
+      // Yeni mesajı ekle
+      const newContent = `${fileContent}\n${username}: ${message}`;
+      const encodedContent = btoa(newContent);
+
+      // Yeni dosya içeriğini yaz
+      const data = {
+        message: `Yeni mesaj: ${username}`,
+        content: encodedContent,
+        sha: sha
+      };
+
+      const response = await fetch(API_URL, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        alert('Mesaj gönderildi.');
+        document.getElementById('message').value = '';
+        loadMessages();
+      } else {
+        const error = await response.json();
+        alert(`Hata: ${error.message}`);
+      }
     }
 
-    // Mesaj gönderme işlemi
-    messageForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const message = messageInput.value.trim();
-      if (message === '') return;
+    async function loadMessages() {
+      const chatBox = document.getElementById('chat-box');
+      chatBox.innerHTML = 'Yükleniyor...';
 
-      // Mesajları tarayıcıya kaydet
-      const messages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-      messages.push(message);
-      localStorage.setItem('chatMessages', JSON.stringify(messages));
+      try {
+        const response = await fetch(API_URL, {
+          headers: {
+            'Authorization': `token ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
 
-      // Sohbet kutusunu güncelle
-      loadMessages();
+        if (response.ok) {
+          const fileData = await response.json();
+          const fileContent = atob(fileData.content);
+          chatBox.innerHTML = fileContent.split('\n').map(line => `<div>${line}</div>`).join('');
+        } else {
+          chatBox.innerHTML = 'Mesajlar yüklenemedi.';
+        }
+      } catch (error) {
+        chatBox.innerHTML = 'Bir hata oluştu.';
+      }
+    }
 
-      // Mesaj kutusunu temizle
-      messageInput.value = '';
-    });
-
-    // Sayfa yüklendiğinde mesajları getir
+    document.getElementById('send-button').addEventListener('click', sendMessage);
     loadMessages();
   </script>
 </body>
